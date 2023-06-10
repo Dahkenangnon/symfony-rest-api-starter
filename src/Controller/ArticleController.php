@@ -51,7 +51,7 @@ class ArticleController extends AbstractController
             ],
             'create' => [
                 'query' => [],
-                'body' => ['title', 'short', 'content', 'comments'],
+                'body' => ['title', 'short', 'content'],
                 'files' => []
             ],
             'get' => [
@@ -60,7 +60,7 @@ class ArticleController extends AbstractController
             ],
             'edit' => [
                 'query' => [],
-                'body' => ['title', 'short', 'content', 'comments'],
+                'body' => [],
                 'files' => []
             ],
             'delete' => [
@@ -157,14 +157,34 @@ class ArticleController extends AbstractController
         $article = new Article();
         $article->setTitle($bodyData['title']);
         $article->setShort($bodyData['short']);
-        $article->setThumbnail($bodyData['thumbnail']);
         $article->setContent($bodyData['content']);
         $article->setPublishedAt(new \DateTimeImmutable());
-        $article->setUpdatedAt(new \DateTimeImmutable());
         $article->setPublishedBy($currentUser);
-        $article->setUpdatedBy($currentUser);
-        $article->setComments($bodyData['comments']);
+        if(isset($bodyData['comments'])){
+            $article->setComments($bodyData['comments']);
+        }
 
+        $thumbnail = $request->files->get('thumbnail');
+        if ($thumbnail) {
+
+            $uploadThumbnailPathData = $this->apiService->uploadSingleFile($request, 'thumbnail', 'article_thumbnail');
+
+            if ($uploadThumbnailPathData['error']) {
+                return $this->jsonResponseFactory->create(
+                    (object) [
+                        'error' => true,
+                        'message' => Response::$statusTexts[Response::HTTP_BAD_REQUEST],
+                        'description' => 'Thumbnail uploaded failed: ' . $uploadThumbnailPathData['message'],
+                        'code' => Response::HTTP_BAD_REQUEST,
+                        'body' => null,
+                        'params' => null
+                    ],
+                    Response::HTTP_BAD_REQUEST,
+                );
+            }
+
+            $article->setThumbnail($uploadThumbnailPathData['datas']);
+        }
 
 
         try {
@@ -285,6 +305,19 @@ class ArticleController extends AbstractController
 
         $bodyData = json_decode($request->getContent(), true);
 
+        // Ensure at least one field has been provided
+        if (count($bodyData) === 0) {
+            return $this->jsonResponseFactory->create(
+                (object) [
+                    'error' => true,
+                    'message' => Response::$statusTexts[Response::HTTP_BAD_REQUEST],
+                    'description' => 'At least one field is required to update the resource.',
+                    'code' => Response::HTTP_BAD_REQUEST,
+                ],
+                Response::HTTP_BAD_REQUEST,
+            );
+        }
+
         // Only update the fields that have been changed (not null and present in the request)
         foreach ($bodyData as $key => $value) {
             if ($value !== null) {
@@ -292,6 +325,29 @@ class ArticleController extends AbstractController
                 $article->$setter($value);
             }
         }
+
+        $thumbnail = $request->files->get('thumbnail');
+        if ($thumbnail) {
+
+            $uploadThumbnailPathData = $this->apiService->uploadSingleFile($request, 'thumbnail', 'article_thumbnail');
+
+            if ($uploadThumbnailPathData['error']) {
+                return $this->jsonResponseFactory->create(
+                    (object) [
+                        'error' => true,
+                        'message' => Response::$statusTexts[Response::HTTP_BAD_REQUEST],
+                        'description' => 'Thumbnail uploaded failed: ' . $uploadThumbnailPathData['message'],
+                        'code' => Response::HTTP_BAD_REQUEST,
+                        'body' => null,
+                        'params' => null
+                    ],
+                    Response::HTTP_BAD_REQUEST,
+                );
+            }
+
+            $article->setThumbnail($uploadThumbnailPathData['datas']);
+        }
+
         $currentUser = $this->getUser();
         $article->setUpdatedAt(new \DateTimeImmutable());
         $article->setUpdatedBy($currentUser);

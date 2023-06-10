@@ -98,9 +98,16 @@ class SecurityController extends AbstractController
         $user = new User();
         $user->setEmail($bodyData['email']);
         $user->setPassword($passwordHasher->hashPassword($user, $bodyData['password']));
-        $user->setFirstName($bodyData['firstName'] ?? null);
-        $user->setLastName($bodyData['lastName'] ?? null);
-        //$user->setUsername($bodyData['email']);
+        
+        if(isset($bodyData['firstName'])){
+            $user->setFirstName($bodyData['firstName']);
+        }
+        
+        if(isset($bodyData['lastName'])){
+            $user->setLastName($bodyData['lastName']);
+        }
+
+        $user->setUsername($bodyData['email']);
 
         try {
             $userRepository->save($user, true);
@@ -128,7 +135,7 @@ class SecurityController extends AbstractController
         }
     }
 
-    #[Route('/password-change-request-for', name: 'app_security_password-change-request', methods: ['POST'])]
+    #[Route('/password-change-request', name: 'app_security_password-change-request', methods: ['POST'])]
     public function passwordChangeRequest(User $user, Request $request, PasswordRequestTokenRepository $passwordRequestTokenRepository, UserRepository $userRepository, MailerInterface $mailer): Response
     {
 

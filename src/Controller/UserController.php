@@ -26,17 +26,17 @@ class UserController extends AbstractController
                 'query' => ['page', 'limit'],
                 'body' => []
             ],
-            'new' => [
+            'create' => [
                 'query' => [],
                 'body' => ['firstName', 'lastName', 'email', 'password']
             ],
-            'show' => [
+            'get' => [
                 'query' => [],
                 'body' => []
             ],
             'edit' => [
                 'query' => [],
-                'body' => ['firstName', 'lastName', 'email']
+                'body' => ['firstName', 'lastName']
             ],
             'delete' => [
                 'query' => [],
@@ -48,17 +48,17 @@ class UserController extends AbstractController
                 'query' => [],
                 'body' => []
             ],
-            'new' => [
+            'create' => [
                 'query' => [],
                 'body' => ['firstName', 'lastName', 'email', 'password']
             ],
-            'show' => [
+            'get' => [
                 'query' => [],
                 'body' => []
             ],
             'edit' => [
                 'query' => [],
-                'body' => ['firstName', 'lastName', 'email']
+                'body' => []
             ],
             'delete' => [
                 'query' => [],
@@ -68,7 +68,7 @@ class UserController extends AbstractController
     }
     
     #[Route('/', name: 'app_user_index', methods: ['GET'])]
-    public function index(#[MapQueryParameter] int $page,  #[MapQueryParameter] int $limit, UserRepository $userRepository, Request $request ): Response
+    public function index(#[MapQueryParameter] int $page,  #[MapQueryParameter] int $limit, UserRepository $userRepository, Request $request ): JsonResponse
     {
 
         $requestValidation = $this->apiService->hasValidBodyAndQueryParameters(
@@ -123,15 +123,15 @@ class UserController extends AbstractController
         }
     }
 
-    #[Route('/new', name: 'app_user_new', methods: ['POST'])]
-    public function new(Request $request, UserRepository $userRepository, UserPasswordHasherInterface $passwordHasher): JsonResponse
+    #[Route('/create', name: 'app_user_new', methods: ['POST'])]
+    public function create(Request $request, UserRepository $userRepository, UserPasswordHasherInterface $passwordHasher): JsonResponse
     {
         $requestValidation = $this->apiService->hasValidBodyAndQueryParameters(
             $request,
-            $this->allowedProperties['new']['body'],
-            $this->requiredFields['new']['body'],
-            $this->allowedProperties['new']['query'],
-            $this->requiredFields['new']['query'],
+            $this->allowedProperties['create']['body'],
+            $this->requiredFields['create']['body'],
+            $this->allowedProperties['create']['query'],
+            $this->requiredFields['create']['query'],
         );
 
         if (!$requestValidation['yes']) {
@@ -155,7 +155,7 @@ class UserController extends AbstractController
         $user->setFirstName($bodyData['firstName'] ?? null);
         $user->setLastName($bodyData['lastName'] ?? null);
         $user->setEmail($bodyData['email'] ?? null);
-        //$user->setUsername($bodyData['email'] ?? null);
+        $user->setUsername($bodyData['email'] ?? null);
         $user->setPassword($passwordHasher->hashPassword($user, $bodyData['password'] ?? null));
 
 
@@ -186,8 +186,8 @@ class UserController extends AbstractController
         }
     }
 
-    #[Route('/{id}', name: 'app_user_show', methods: ['GET'])]
-    public function show(User $user = null, Request $request): Response
+    #[Route('/get/{id}', name: 'app_user_show', methods: ['GET'])]
+    public function get(User $user = null, Request $request): JsonResponse
     {
 
         
@@ -205,10 +205,10 @@ class UserController extends AbstractController
 
         $requestValidation = $this->apiService->hasValidBodyAndQueryParameters(
             $request,
-            $this->allowedProperties['show']['body'],
-            $this->requiredFields['show']['body'],
-            $this->allowedProperties['show']['query'],
-            $this->requiredFields['show']['query'],
+            $this->allowedProperties['get']['body'],
+            $this->requiredFields['get']['body'],
+            $this->allowedProperties['get']['query'],
+            $this->requiredFields['get']['query'],
         );
 
         if (!$requestValidation['yes']) {
@@ -238,8 +238,8 @@ class UserController extends AbstractController
         );
     }
 
-    #[Route('/{id}/edit', name: 'app_user_edit', methods: ['PUT'])]
-    public function edit(Request $request, User $user = null, UserRepository $userRepository): Response
+    #[Route('/edit/{id}', name: 'app_user_edit', methods: ['PUT', 'PATCH'])]
+    public function edit(Request $request, User $user = null, UserRepository $userRepository , UserPasswordHasherInterface $passwordHasher): JsonResponse
     {
         if (!$user) {
             return $this->jsonResponseFactory->create(
@@ -278,10 +278,29 @@ class UserController extends AbstractController
 
         $bodyData = json_decode($request->getContent(), true);
 
+        // Ensure at least one field has been provided
+        if (empty($bodyData)) {
+            return $this->jsonResponseFactory->create(
+                (object) [
+                    'error' => true,
+                    'message' => Response::$statusTexts[Response::HTTP_BAD_REQUEST],
+                    'description' => 'You must provided at least one field to update.',
+                    'code' => Response::HTTP_BAD_REQUEST
+                ],
+                Response::HTTP_BAD_REQUEST,
+            );
+        }
+
         // Only update the fields that have been changed (not null and present in the request)
         foreach ($bodyData as $key => $value) {
             if ($value !== null) {
                 $setter = 'set' . ucfirst($key);
+
+                if($key === 'password') {
+                    $user->setPassword($passwordHasher->hashPassword($user, $value));
+                    continue;
+                }
+
                 $user->$setter($value);
             }
         }
@@ -312,8 +331,8 @@ class UserController extends AbstractController
     }
 
 
-    #[Route('/{id}', name: 'app_user_delete', methods: ['DELETE'])]
-    public function delete(Request $request, User $user = null, UserRepository $userRepository): Response
+    #[Route('/delete/{id}', name: 'app_user_delete', methods: ['DELETE'])]
+    public function delete(Request $request, User $user = null, UserRepository $userRepository): JsonResponse
     {
         
         // Ensure the user exists in the database
